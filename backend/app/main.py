@@ -5,7 +5,7 @@ import requests
 from datetime import datetime, timezone
 from fastapi.middleware.cors import CORSMiddleware
 
-from .services.ephemeris import compute_sky_snapshot, compute_planner
+from .services.ephemeris import compute_sky_snapshot, compute_planner, compute_future_windows
 
 app = FastAPI(title="AstroAgent Ephemeris API", version="0.1.0")
 
@@ -103,6 +103,67 @@ async def get_plan(
 			cloud_cover_pct=clouds if clouds is not None else clouds_pct,
 		)
 		return JSONResponse(content=plan)
+	except ValueError as e:
+		return JSONResponse(status_code=400, content={"code": "BadRequest", "message": str(e)})
+	except Exception as e:
+		return JSONResponse(status_code=500, content={"code": "InternalError", "message": str(e)})
+
+
+@app.get("/api/future-windows")
+async def get_future_windows(
+	lat: float = Query(..., ge=-90.0, le=90.0),
+	lon: float = Query(..., ge=-180.0, le=180.0),
+	elev: float = Query(0.0, ge=-500.0, le=9000.0),
+	dt: Optional[str] = Query(None, alias="datetime"),
+	refraction: bool = Query(True),
+	target: str = Query("saturn"),
+	days_ahead: int = Query(60, ge=1, le=365),
+	max_windows: int = Query(3, ge=1, le=10),
+	clouds: Optional[float] = Query(None, ge=0.0, le=100.0, alias="cloudCoverPct"),
+):
+	"""Get future optimal viewing windows for a celestial object."""
+	try:
+		start_dt = (
+			datetime.fromisoformat(dt.replace("Z", "+00:00")).astimezone(timezone.utc)
+			if dt
+			else datetime.now(timezone.utc)
+		)
+		
+		# Fetch cloud cover from Open-Meteo hourly forecast
+		clouds_pct = None
+		try:
+			om = requests.get(
+				"https://api.open-meteo.com/v1/forecast",
+				params={
+					"latitude": lat,
+					"longitude": lon,
+					"hourly": "cloud_cover",
+					"timezone": "UTC",
+				},
+				timeout=6,
+			)
+			if om.ok:
+				data = om.json()
+				hours = data.get("hourly", {}).get("time", [])
+				vals = data.get("hourly", {}).get("cloud_cover", [])
+				if hours and vals:
+					# Use current hour's cloud cover as baseline
+					clouds_pct = float(vals[0])
+		except Exception:
+			pass
+
+		future_windows = compute_future_windows(
+			latitude_deg=lat,
+			longitude_deg=lon,
+			elevation_m=elev,
+			start_datetime=start_dt,
+			target_body=target,
+			days_ahead=days_ahead,
+			max_windows=max_windows,
+			apply_refraction=refraction,
+			cloud_cover_pct=clouds if clouds is not None else clouds_pct,
+		)
+		return JSONResponse(content=future_windows)
 	except ValueError as e:
 		return JSONResponse(status_code=400, content={"code": "BadRequest", "message": str(e)})
 	except Exception as e:

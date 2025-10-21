@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Any, List, Tuple
 import math
@@ -177,4 +177,88 @@ def compute_planner(
 				"clouds": clouds_score,
 			},
 		},
+	}
+
+
+def compute_future_windows(
+	latitude_deg: float,
+	longitude_deg: float,
+	elevation_m: float,
+	start_datetime: datetime,
+	target_body: str,
+	days_ahead: int = 60,
+	max_windows: int = 3,
+	apply_refraction: bool = True,
+	cloud_cover_pct: float | None = None,
+) -> Dict[str, Any]:
+	"""Find the best future viewing windows for a celestial object.
+	
+	Args:
+		latitude_deg: Observer latitude in degrees
+		longitude_deg: Observer longitude in degrees  
+		elevation_m: Observer elevation in meters
+		start_datetime: Starting datetime to search from
+		target_body: Target celestial body (e.g., 'saturn', 'jupiter')
+		days_ahead: Number of days to search ahead (default 60)
+		max_windows: Maximum number of windows to return (default 3)
+		apply_refraction: Whether to apply atmospheric refraction
+		cloud_cover_pct: Cloud cover percentage (None for unknown)
+		
+	Returns:
+		Dictionary containing array of best viewing windows
+	"""
+	windows = []
+	
+	# Sample daily at local midnight (optimal dark sky time)
+	for day_offset in range(1, days_ahead + 1):
+		# Calculate local midnight for this day
+		sample_datetime = start_datetime + timedelta(days=day_offset)
+		# Set to local midnight (00:00 local time)
+		sample_datetime = sample_datetime.replace(hour=0, minute=0, second=0, microsecond=0)
+		
+		try:
+			# Get observation plan for this datetime
+			plan = compute_planner(
+				latitude_deg=latitude_deg,
+				longitude_deg=longitude_deg,
+				elevation_m=elevation_m,
+				when_utc=sample_datetime,
+				apply_refraction=apply_refraction,
+				target_body=target_body,
+				cloud_cover_pct=cloud_cover_pct,
+			)
+			
+			score = plan["recommendation"]["score"]
+			metrics = plan["metrics"]
+			
+			# Only consider windows with reasonable scores (> 0.3)
+			if score > 0.3:
+				# Create human-readable date range (±2 days around the optimal time)
+				date_str = sample_datetime.strftime("%b %d, %Y")
+				
+				windows.append({
+					"datetime": sample_datetime.replace(tzinfo=None).isoformat() + "Z",
+					"dateRange": date_str,
+					"score": score,
+					"metrics": metrics,
+					"recommendation": plan["recommendation"]
+				})
+				
+		except Exception:
+			# Skip dates that fail (e.g., invalid ephemeris data)
+			continue
+	
+	# Sort by score (highest first) and take top windows
+	windows.sort(key=lambda w: w["score"], reverse=True)
+	top_windows = windows[:max_windows]
+	
+	return {
+		"target": target_body.lower(),
+		"searchPeriod": {
+			"startDate": start_datetime.replace(tzinfo=None).isoformat() + "Z",
+			"daysAhead": days_ahead
+		},
+		"windows": top_windows,
+		"totalFound": len(windows),
+		"returned": len(top_windows)
 	}

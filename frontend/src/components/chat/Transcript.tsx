@@ -132,7 +132,7 @@ function Transcript({
                 : title;
 
               return (
-                <div key={itemId} className={`${containerClasses} group`}>
+                <div key={itemId} className={containerClasses}>
                   <div className="max-w-lg">
                     <div
                       className={`${bubbleBase} rounded-2xl ${
@@ -142,7 +142,7 @@ function Transcript({
                       <div
                         className={`text-xs ${
                           isUser ? "text-stone-300" : "text-stone-500"
-                        } font-mono mb-1 opacity-0 group-hover:opacity-100 transition-opacity`}
+                        } font-mono mb-1`}
                       >
                         {timestamp}
                       </div>

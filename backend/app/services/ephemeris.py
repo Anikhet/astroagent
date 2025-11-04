@@ -209,44 +209,61 @@ def compute_future_windows(
 	"""
 	windows = []
 	
-	# Sample daily at local midnight (optimal dark sky time)
+	# Search through each day and find the best hour for viewing
 	for day_offset in range(1, days_ahead + 1):
-		# Calculate local midnight for this day
-		sample_datetime = start_datetime + timedelta(days=day_offset)
-		# Set to local midnight (00:00 local time)
-		sample_datetime = sample_datetime.replace(hour=0, minute=0, second=0, microsecond=0)
+		# Start with the base date for this day
+		base_date = start_datetime + timedelta(days=day_offset)
 		
-		try:
-			# Get observation plan for this datetime
-			plan = compute_planner(
-				latitude_deg=latitude_deg,
-				longitude_deg=longitude_deg,
-				elevation_m=elevation_m,
-				when_utc=sample_datetime,
-				apply_refraction=apply_refraction,
-				target_body=target_body,
-				cloud_cover_pct=cloud_cover_pct,
-			)
+		best_score = 0.0
+		best_datetime = None
+		best_plan = None
+		
+		# Sample every hour for this day to find the optimal viewing time
+		for hour in range(24):
+			sample_datetime = base_date.replace(hour=hour, minute=0, second=0, microsecond=0)
 			
-			score = plan["recommendation"]["score"]
-			metrics = plan["metrics"]
+			try:
+				# Get observation plan for this datetime
+				plan = compute_planner(
+					latitude_deg=latitude_deg,
+					longitude_deg=longitude_deg,
+					elevation_m=elevation_m,
+					when_utc=sample_datetime,
+					apply_refraction=apply_refraction,
+					target_body=target_body,
+					cloud_cover_pct=cloud_cover_pct,
+				)
+				
+				score = plan["recommendation"]["score"]
+				metrics = plan["metrics"]
+				
+				# Check if this is a valid viewing window
+				# Target must be above horizon and sun below civil twilight
+				if (metrics["targetAltitudeDeg"] > 0.0 and 
+					metrics["sunAltitudeDeg"] < -6.0 and 
+					score > best_score):
+					best_score = score
+					best_datetime = sample_datetime
+					best_plan = plan
+					
+			except Exception:
+				# Skip hours that fail (e.g., invalid ephemeris data)
+				continue
+		
+		# If we found a good window for this day, add it to results
+		if best_plan and best_score > 0.3:
+			# Create human-readable date and time
+			date_str = best_datetime.strftime("%b %d, %Y")
+			time_str = best_datetime.strftime("%I:%M %p")
+			date_range = f"{date_str} at {time_str}"
 			
-			# Only consider windows with reasonable scores (> 0.3)
-			if score > 0.3:
-				# Create human-readable date range (±2 days around the optimal time)
-				date_str = sample_datetime.strftime("%b %d, %Y")
-				
-				windows.append({
-					"datetime": sample_datetime.replace(tzinfo=None).isoformat() + "Z",
-					"dateRange": date_str,
-					"score": score,
-					"metrics": metrics,
-					"recommendation": plan["recommendation"]
-				})
-				
-		except Exception:
-			# Skip dates that fail (e.g., invalid ephemeris data)
-			continue
+			windows.append({
+				"datetime": best_datetime.replace(tzinfo=None).isoformat() + "Z",
+				"dateRange": date_range,
+				"score": best_score,
+				"metrics": best_plan["metrics"],
+				"recommendation": best_plan["recommendation"]
+			})
 	
 	# Sort by score (highest first) and take top windows
 	windows.sort(key=lambda w: w["score"], reverse=True)

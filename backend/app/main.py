@@ -117,7 +117,7 @@ async def get_future_windows(
 	dt: Optional[str] = Query(None, alias="datetime"),
 	refraction: bool = Query(True),
 	target: str = Query("saturn"),
-	days_ahead: int = Query(60, ge=1, le=365),
+	days_ahead: int = Query(14, ge=1, le=365),
 	max_windows: int = Query(3, ge=1, le=10),
 	clouds: Optional[float] = Query(None, ge=0.0, le=100.0, alias="cloudCoverPct"),
 ):

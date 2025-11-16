@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 interface TimeControlsProps {
   onDateChange: (date: Date) => void;
@@ -22,6 +22,89 @@ export default function TimeControls({
   const [longitude, setLongitude] = useState(initialLongitude);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playSpeed, setPlaySpeed] = useState(1);
+
+  // Calculate time range: 7 days back to 7 days forward from current time
+  const now = useMemo(() => new Date(), []);
+  const minDate = useMemo(() => {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 7);
+    return d;
+  }, [now]);
+  const maxDate = useMemo(() => {
+    const d = new Date(now);
+    d.setDate(d.getDate() + 7);
+    return d;
+  }, [now]);
+
+  // Sync date state when initialDate prop changes (but not during playback)
+  useEffect(() => {
+    if (isPlaying) return; // Don't sync during playback to avoid conflicts
+    
+    // Clamp initialDate to valid range
+    const clampedDate = new Date(
+      Math.max(minDate.getTime(), Math.min(maxDate.getTime(), initialDate.getTime()))
+    );
+    
+    // Only update if the date actually changed (avoid unnecessary updates)
+    if (Math.abs(clampedDate.getTime() - date.getTime()) > 1000) {
+      setDate(clampedDate);
+    }
+  }, [initialDate, minDate, maxDate, isPlaying, date]);
+
+  // Calculate slider value (0-100) from current date
+  const getSliderValue = (currentDate: Date): number => {
+    const totalRange = maxDate.getTime() - minDate.getTime();
+    const currentOffset = currentDate.getTime() - minDate.getTime();
+    return Math.max(0, Math.min(100, (currentOffset / totalRange) * 100));
+  };
+
+  // Convert slider value (0-100) to date
+  const getDateFromSliderValue = (value: number): Date => {
+    const totalRange = maxDate.getTime() - minDate.getTime();
+    const offset = (value / 100) * totalRange;
+    return new Date(minDate.getTime() + offset);
+  };
+
+  // Handle slider change
+  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const sliderValue = Number(e.target.value);
+    const newDate = getDateFromSliderValue(sliderValue);
+    // Clamp to valid range
+    const clampedDate = new Date(Math.max(minDate.getTime(), Math.min(maxDate.getTime(), newDate.getTime())));
+    handleDateChange(clampedDate);
+  };
+
+  // Playback functionality
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    // Calculate step size: 1 minute base × playSpeed
+    // For real-time feel, we'll advance by minutes based on speed
+    const stepMinutes = 1 * playSpeed;
+    const intervalMs = 1000; // Update every second
+
+    const interval = setInterval(() => {
+      setDate((prevDate) => {
+        const newDate = new Date(prevDate.getTime() + stepMinutes * 60 * 1000);
+        
+        // Stop at max date
+        if (newDate.getTime() >= maxDate.getTime()) {
+          setIsPlaying(false);
+          return maxDate;
+        }
+        
+        // Ensure we don't go below min date
+        if (newDate.getTime() < minDate.getTime()) {
+          setIsPlaying(false);
+          return minDate;
+        }
+        
+        return newDate;
+      });
+    }, intervalMs);
+
+    return () => clearInterval(interval);
+  }, [isPlaying, playSpeed, maxDate, minDate]);
 
   const handleDateChange = (newDate: Date) => {
     setDate(newDate);
@@ -63,8 +146,48 @@ export default function TimeControls({
           <input
             type="datetime-local"
             value={formatDate(date)}
-            onChange={(e) => handleDateChange(new Date(e.target.value))}
+            onChange={(e) => {
+              const newDate = new Date(e.target.value);
+              // Clamp to valid range
+              if (newDate.getTime() < minDate.getTime()) {
+                handleDateChange(minDate);
+              } else if (newDate.getTime() > maxDate.getTime()) {
+                handleDateChange(maxDate);
+              } else {
+                handleDateChange(newDate);
+              }
+            }}
+            min={formatDate(minDate)}
+            max={formatDate(maxDate)}
             className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white focus:border-green-400 focus:outline-none"
+          />
+        </div>
+
+        {/* Time Scrubber */}
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-xs text-gray-400">7 days ago</span>
+            <span className="text-sm font-medium text-green-400">
+              {date.toLocaleString('en-US', { 
+                month: 'short', 
+                day: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              })}
+            </span>
+            <span className="text-xs text-gray-400">7 days ahead</span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            step="0.1"
+            value={getSliderValue(date)}
+            onChange={handleSliderChange}
+            className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-green-500"
+            style={{
+              background: `linear-gradient(to right, #10b981 0%, #10b981 ${getSliderValue(date)}%, #374151 ${getSliderValue(date)}%, #374151 100%)`
+            }}
           />
         </div>
 

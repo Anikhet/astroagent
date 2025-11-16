@@ -15,7 +15,6 @@ interface CameraContextValue {
   highlightPlanet: (planetId: string, position: THREE.Vector3) => void;
   highlightedPlanet: string | null;
   highlightedPosition: THREE.Vector3 | null;
-  selectedPlanet: string | null;
   saveCameraState: (camera: THREE.Camera, target?: THREE.Vector3 | null) => void;
   getSavedCameraState: () => CameraState | null;
 }
@@ -25,7 +24,6 @@ const CameraContext = createContext<CameraContextValue | undefined>(undefined);
 export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [highlightedPlanet, setHighlightedPlanet] = useState<string | null>(null);
   const [highlightedPosition, setHighlightedPosition] = useState<THREE.Vector3 | null>(null);
-  const [selectedPlanet, setSelectedPlanet] = useState<string | null>(null);
 
   // Track last animation to prevent duplicate calls
   const lastAnimationRef = useRef<{ planetId: string; altitude: number; azimuth: number; timestamp: number } | null>(null);
@@ -84,10 +82,6 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Update last animation tracking
     lastAnimationRef.current = { planetId, altitude, azimuth, timestamp: now };
 
-    // Set the selected planet for PlannerCard to track
-    setSelectedPlanet(planetId.toLowerCase());
-    console.log(`[CameraContext] Set selectedPlanet to: ${planetId.toLowerCase()}`);
-
     const SKY_RADIUS = 200; // Match SkyViewer.tsx
 
     // Calculate planet's actual position on sky sphere (where it's rendered)
@@ -124,7 +118,6 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     highlightPlanet,
     highlightedPlanet,
     highlightedPosition,
-    selectedPlanet,
     saveCameraState,
     getSavedCameraState,
   };

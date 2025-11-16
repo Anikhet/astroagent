@@ -93,6 +93,35 @@ def _clamp01(x: float) -> float:
 	return max(0.0, min(1.0, x))
 
 
+def _utc_to_local_time(utc_datetime: datetime, longitude_deg: float) -> tuple[datetime, str]:
+	"""Convert UTC datetime to local time based on longitude.
+	
+	Args:
+		utc_datetime: UTC datetime
+		longitude_deg: Observer longitude in degrees
+		
+	Returns:
+		Tuple of (local_datetime, timezone_offset_string)
+	"""
+	# Calculate timezone offset from longitude (approximate)
+	# Each 15 degrees of longitude ≈ 1 hour
+	offset_hours = longitude_deg / 15.0
+	
+	# Create timedelta for the offset
+	offset = timedelta(hours=offset_hours)
+	
+	# Convert to local time
+	local_datetime = utc_datetime + offset
+	
+	# Format timezone offset string
+	if offset_hours >= 0:
+		offset_str = f"UTC+{offset_hours:.0f}"
+	else:
+		offset_str = f"UTC{offset_hours:.0f}"  # Negative sign already included
+	
+	return local_datetime, offset_str
+
+
 def _angular_separation_deg(ra1_deg: float, dec1_deg: float, ra2_deg: float, dec2_deg: float) -> float:
 	ra1 = math.radians(ra1_deg)
 	ra2 = math.radians(ra2_deg)
@@ -186,7 +215,7 @@ def compute_future_windows(
 	elevation_m: float,
 	start_datetime: datetime,
 	target_body: str,
-	days_ahead: int = 60,
+	days_ahead: int = 14,
 	max_windows: int = 3,
 	apply_refraction: bool = True,
 	cloud_cover_pct: float | None = None,
@@ -199,7 +228,7 @@ def compute_future_windows(
 		elevation_m: Observer elevation in meters
 		start_datetime: Starting datetime to search from
 		target_body: Target celestial body (e.g., 'saturn', 'jupiter')
-		days_ahead: Number of days to search ahead (default 60)
+		days_ahead: Number of days to search ahead (default 14)
 		max_windows: Maximum number of windows to return (default 3)
 		apply_refraction: Whether to apply atmospheric refraction
 		cloud_cover_pct: Cloud cover percentage (None for unknown)
@@ -218,9 +247,11 @@ def compute_future_windows(
 		best_datetime = None
 		best_plan = None
 		
-		# Sample every hour for this day to find the optimal viewing time
-		for hour in range(24):
-			sample_datetime = base_date.replace(hour=hour, minute=0, second=0, microsecond=0)
+		# Sample every 20 minutes for this day to find the optimal viewing time
+		for minute_offset in range(0, 24*60, 20):  # Every 20 minutes
+			hour = minute_offset // 60
+			minute = minute_offset % 60
+			sample_datetime = base_date.replace(hour=hour, minute=minute, second=0, microsecond=0)
 			
 			try:
 				# Get observation plan for this datetime
@@ -252,10 +283,13 @@ def compute_future_windows(
 		
 		# If we found a good window for this day, add it to results
 		if best_plan and best_score > 0.3:
-			# Create human-readable date and time
-			date_str = best_datetime.strftime("%b %d, %Y")
-			time_str = best_datetime.strftime("%I:%M %p")
-			date_range = f"{date_str} at {time_str}"
+			# Convert UTC to local time
+			local_datetime, timezone_offset = _utc_to_local_time(best_datetime, longitude_deg)
+			
+			# Create human-readable date and time in local timezone
+			date_str = local_datetime.strftime("%B %d, %Y")  # Full month name
+			time_str = local_datetime.strftime("%I:%M %p")
+			date_range = f"{date_str} at {time_str} Local ({timezone_offset})"
 			
 			windows.append({
 				"datetime": best_datetime.replace(tzinfo=None).isoformat() + "Z",

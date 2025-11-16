@@ -28,6 +28,73 @@ interface SkyResponse {
 }
 
 const SKY_RADIUS = 200;
+const CACHE_INTERVAL_HOURS = 1; // Cache positions at 1-hour intervals
+const BATCH_SIZE = 20; // Fetch 20 requests at a time
+
+// Helper function to normalize azimuth to 0-360
+function normalizeAzimuth(az: number): number {
+  let normalized = az % 360;
+  if (normalized < 0) normalized += 360;
+  return normalized;
+}
+
+// Interpolate between two azimuth values (handles wrapping)
+function interpolateAzimuth(az1: number, az2: number, t: number): number {
+  const norm1 = normalizeAzimuth(az1);
+  const norm2 = normalizeAzimuth(az2);
+  
+  // Find shortest path (could be clockwise or counter-clockwise)
+  let diff = norm2 - norm1;
+  if (Math.abs(diff) > 180) {
+    // Take the shorter path around the circle
+    if (diff > 0) {
+      diff -= 360;
+    } else {
+      diff += 360;
+    }
+  }
+  
+  return normalizeAzimuth(norm1 + diff * t);
+}
+
+// Interpolate between two body positions
+function interpolateBodies(before: BodyData[], after: BodyData[], t: number): BodyData[] {
+  const bodyMap = new Map<string, { before: BodyData | null; after: BodyData | null }>();
+  
+  // Index bodies by id
+  before.forEach(body => {
+    if (!bodyMap.has(body.id)) {
+      bodyMap.set(body.id, { before: null, after: null });
+    }
+    bodyMap.get(body.id)!.before = body;
+  });
+  
+  after.forEach(body => {
+    if (!bodyMap.has(body.id)) {
+      bodyMap.set(body.id, { before: null, after: null });
+    }
+    bodyMap.get(body.id)!.after = body;
+  });
+  
+  // Interpolate each body
+  const interpolated: BodyData[] = [];
+  bodyMap.forEach(({ before: beforeBody, after: afterBody }, id) => {
+    if (beforeBody && afterBody) {
+      interpolated.push({
+        id,
+        name: beforeBody.name,
+        az: interpolateAzimuth(beforeBody.az, afterBody.az, t),
+        alt: beforeBody.alt + (afterBody.alt - beforeBody.alt) * t,
+      });
+    } else if (beforeBody) {
+      interpolated.push(beforeBody);
+    } else if (afterBody) {
+      interpolated.push(afterBody);
+    }
+  });
+  
+  return interpolated;
+}
 
 function altAzToVector(altDeg: number, azDeg: number, radius: number) {
   const alt = (altDeg * Math.PI) / 180;
@@ -339,7 +406,107 @@ function BodyMarker({ id, name, position }: { id: string; name: string; position
 export default function SkyViewer({ date, latitude, longitude }: SkyViewerProps) {
   const [bodies, setBodies] = useState<BodyData[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [cacheLoading, setCacheLoading] = useState(false);
   const controlsRef = useRef<any>(null);
+  
+  // Cache for planet positions: Map<timestamp ISO string, SkyResponse>
+  const positionCacheRef = useRef<Map<string, SkyResponse>>(new Map());
+  const cacheLocationRef = useRef<{ lat: number; lon: number } | null>(null);
+
+  // Helper: Round timestamp to nearest cache interval
+  const roundToCacheInterval = (timestamp: Date): Date => {
+    const rounded = new Date(timestamp);
+    rounded.setMinutes(0, 0, 0);
+    return rounded;
+  };
+
+  // Helper: Get cache key for a timestamp
+  const getCacheKey = (timestamp: Date): string => {
+    return roundToCacheInterval(timestamp).toISOString();
+  };
+
+  // Helper: Get nearest cache keys (before and after)
+  const getNearestCacheKeys = (timestamp: Date): { before: string | null; after: string | null } => {
+    const cache = positionCacheRef.current;
+    if (cache.size === 0) return { before: null, after: null };
+
+    const targetTime = timestamp.getTime(); // Use actual timestamp for accurate nearest keys
+    
+    let before: string | null = null;
+    let after: string | null = null;
+    let beforeTime = -Infinity;
+    let afterTime = Infinity;
+
+    cache.forEach((_, key) => {
+      const keyTime = new Date(key).getTime();
+      if (keyTime <= targetTime && keyTime > beforeTime) {
+        before = key;
+        beforeTime = keyTime;
+      }
+      if (keyTime >= targetTime && keyTime < afterTime) {
+        after = key;
+        afterTime = keyTime;
+      }
+    });
+
+    return { before, after };
+  };
+
+  // Helper: Fetch a single timestamp and cache it
+  const fetchAndCache = async (timestamp: Date, lat: number, lon: number): Promise<SkyResponse | null> => {
+    try {
+      const params = new URLSearchParams({
+        lat: String(lat),
+        lon: String(lon),
+        elev: '0',
+        refraction: 'true',
+        datetime: timestamp.toISOString(),
+      });
+
+      const res = await fetch(`http://localhost:8000/api/sky?${params.toString()}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const json: SkyResponse = await res.json();
+      const cacheKey = getCacheKey(timestamp);
+      positionCacheRef.current.set(cacheKey, json);
+      return json;
+    } catch (e: any) {
+      console.error(`Failed to fetch ${timestamp.toISOString()}:`, e);
+      return null;
+    }
+  };
+
+  // Helper: Get interpolated or cached bodies for a timestamp
+  const getBodiesForTimestamp = (timestamp: Date): BodyData[] | null => {
+    const cache = positionCacheRef.current;
+    const cacheKey = getCacheKey(timestamp);
+    
+    // Exact cache hit (at cache interval boundary)
+    if (cache.has(cacheKey)) {
+      return cache.get(cacheKey)!.bodies;
+    }
+
+    // Try interpolation
+    const { before, after } = getNearestCacheKeys(timestamp);
+    if (before && after) {
+      const beforeTime = new Date(before).getTime();
+      const afterTime = new Date(after).getTime();
+      const targetTime = timestamp.getTime(); // Use actual timestamp for smooth interpolation
+      
+      if (beforeTime !== afterTime) {
+        const t = (targetTime - beforeTime) / (afterTime - beforeTime);
+        const beforeBodies = cache.get(before)!.bodies;
+        const afterBodies = cache.get(after)!.bodies;
+        return interpolateBodies(beforeBodies, afterBodies, t);
+      }
+    }
+
+    // Single cache hit (before or after)
+    if (before) return cache.get(before)!.bodies;
+    if (after) return cache.get(after)!.bodies;
+
+    return null;
+  };
 
   // Track component mounting
   useEffect(() => {
@@ -354,37 +521,111 @@ export default function SkyViewer({ date, latitude, longitude }: SkyViewerProps)
     console.log('[SkyViewer] Props changed:', { date: date.toISOString(), latitude, longitude });
   }, [date, latitude, longitude]);
 
+  // Clear cache when location changes
+  useEffect(() => {
+    const currentLocation = { lat: latitude, lon: longitude };
+    const cachedLocation = cacheLocationRef.current;
+    
+    if (!cachedLocation || cachedLocation.lat !== latitude || cachedLocation.lon !== longitude) {
+      console.log('[SkyViewer] Location changed, clearing cache');
+      positionCacheRef.current.clear();
+      cacheLocationRef.current = currentLocation;
+    }
+  }, [latitude, longitude]);
+
+  // Pre-fetch positions for the 4-day range (2 days back, 2 days forward)
+  useEffect(() => {
+    let cancelled = false;
+    const cache = positionCacheRef.current;
+    
+    // Generate timestamps for 4 days at 1-hour intervals (2 days back, 2 days forward)
+    const now = new Date();
+    const startDate = new Date(now);
+    startDate.setDate(startDate.getDate() - 2);
+    startDate.setHours(0, 0, 0, 0);
+    
+    const endDate = new Date(now);
+    endDate.setDate(endDate.getDate() + 2);
+    endDate.setHours(23, 0, 0, 0);
+    
+    const timestamps: Date[] = [];
+    for (let d = new Date(startDate); d <= endDate; d.setHours(d.getHours() + CACHE_INTERVAL_HOURS)) {
+      timestamps.push(new Date(d));
+    }
+    
+    // Filter out timestamps that are already cached
+    const toFetch = timestamps.filter(ts => {
+      const key = getCacheKey(ts);
+      return !cache.has(key);
+    });
+    
+    if (toFetch.length === 0) {
+      console.log('[SkyViewer] Cache already populated');
+      return;
+    }
+    
+    console.log(`[SkyViewer] Pre-fetching ${toFetch.length} positions...`);
+    setCacheLoading(true);
+    
+    // Fetch in batches to avoid overwhelming the server
+    const fetchBatch = async (batch: Date[]) => {
+      const promises = batch.map(ts => fetchAndCache(ts, latitude, longitude));
+      await Promise.all(promises);
+    };
+    
+    const preFetchAll = async () => {
+      for (let i = 0; i < toFetch.length; i += BATCH_SIZE) {
+        if (cancelled) break;
+        const batch = toFetch.slice(i, i + BATCH_SIZE);
+        await fetchBatch(batch);
+        // Small delay between batches to be nice to the server
+        if (i + BATCH_SIZE < toFetch.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+      
+      if (!cancelled) {
+        console.log(`[SkyViewer] Cache populated with ${cache.size} positions`);
+        setCacheLoading(false);
+      }
+    };
+    
+    preFetchAll();
+    
+    return () => {
+      cancelled = true;
+      setCacheLoading(false);
+    };
+  }, [latitude, longitude]);
+
+  // Main data fetching and interpolation logic
   useEffect(() => {
     let cancelled = false;
 
-    const fetchData = async () => {
-      try {
-        const params = new URLSearchParams({
-          lat: String(latitude),
-          lon: String(longitude),
-          elev: '0',
-          refraction: 'true',
-          datetime: date.toISOString(),
-        });
-
-        const res = await fetch(`http://localhost:8000/api/sky?${params.toString()}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-        const json: SkyResponse = await res.json();
+    const updateBodies = async () => {
+      // Try to get from cache/interpolation first
+      const cachedBodies = getBodiesForTimestamp(date);
+      
+      if (cachedBodies) {
         if (!cancelled) {
-          setBodies(json.bodies);
+          setBodies(cachedBodies);
         }
-      } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? 'Failed to fetch sky');
+        return;
+      }
+
+      // Cache miss - fetch and cache
+      const fetched = await fetchAndCache(date, latitude, longitude);
+      if (!cancelled && fetched) {
+        setBodies(fetched.bodies);
+      } else if (!cancelled) {
+        setError('Failed to fetch sky data');
       }
     };
 
-    fetchData();
-    const timer = setInterval(fetchData, 5000);
+    updateBodies();
 
     return () => {
       cancelled = true;
-      clearInterval(timer);
     };
   }, [latitude, longitude, date]);
 
@@ -454,6 +695,15 @@ export default function SkyViewer({ date, latitude, longitude }: SkyViewerProps)
       {error && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-yellow-900/60 text-yellow-100 px-3 py-2 rounded">
           {error}
+        </div>
+      )}
+      
+      {cacheLoading && (
+        <div className="absolute top-4 right-4 z-10 bg-black/80 backdrop-blur-sm text-white px-4 py-2 rounded-lg">
+          <div className="flex items-center space-x-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-400"></div>
+            <span className="text-sm">Loading planet positions...</span>
+          </div>
         </div>
       )}
     </div>

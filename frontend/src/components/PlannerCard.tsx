@@ -41,17 +41,29 @@ export function PlannerCard({ date, latitude, longitude, target = 'saturn' }: Pl
   const [data, setData] = useState<PlannerResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [debouncedDate, setDebouncedDate] = useState(date);
+
+  // Debounce date changes with 500ms delay
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedDate(date);
+    }, 500);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [date]);
 
   const params = useMemo(() => {
     const p = new URLSearchParams({
       lat: String(latitude),
       lon: String(longitude),
       elev: String(0),
-      datetime: date.toISOString(),
+      datetime: debouncedDate.toISOString(),
       target,
     });
     return p.toString();
-  }, [date, latitude, longitude, target]);
+  }, [debouncedDate, latitude, longitude, target]);
 
   useEffect(() => {
     let cancelled = false;

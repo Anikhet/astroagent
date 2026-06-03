@@ -1,3 +1,4 @@
+
 # AstroAgent: Snacks for Stargazers
 
 Welcome to the app that points your digital telescope so you can pretend you meant to look there all along.
@@ -17,6 +18,9 @@ If that fails, try the README you deleted to read this.
 - Works best at night. Shocking, we know.
 - Don’t cross the streams (frontend on :3000, backend on :8000).
 - Bring snacks; astronomy is 90% waiting for clouds to leave.
+
+Basic Architecture:
+<img width="337" height="269" alt="Screenshot 2026-06-02 at 6 56 08 PM" src="https://github.com/user-attachments/assets/d4e19b33-0ebc-4078-8ed7-662bbb159b4b" />
 
 Happy star surfing! ⭐️
 Here's the research paper if you're interested to give it a read!

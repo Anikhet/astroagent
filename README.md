@@ -20,6 +20,7 @@ If that fails, try the README you deleted to read this.
 - Bring snacks; astronomy is 90% waiting for clouds to leave.
 
 Basic Architecture:
+
 <img width="337" height="269" alt="Screenshot 2026-06-02 at 6 56 08 PM" src="https://github.com/user-attachments/assets/d4e19b33-0ebc-4078-8ed7-662bbb159b4b" />
 
 Happy star surfing! ⭐️

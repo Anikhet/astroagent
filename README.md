@@ -25,4 +25,5 @@ Basic Architecture:
 
 Happy star surfing! ⭐️
 Here's the research paper if you're interested to give it a read!
-<img width="815" height="901" alt="Screenshot 2026-06-02 at 6 55 34 PM" src="https://github.com/user-attachments/assets/556da0f8-8618-4bdd-96cc-bfeb583647f8" />
+https://drive.google.com/file/d/1ZKxq7AJo-SNlBnFNgKOhNPspvaQoFn7M/view?usp=drive_link
+

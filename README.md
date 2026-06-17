@@ -27,4 +27,6 @@ Basic Architecture:
 Happy star surfing! ⭐️
 Here's the research paper if you're interested to give it a read!
 https://drive.google.com/file/d/1ZKxq7AJo-SNlBnFNgKOhNPspvaQoFn7M/view?usp=drive_link
+Here's a short demo
+https://www.tella.tv/video/astroagent-18yh
 

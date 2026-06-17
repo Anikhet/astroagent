@@ -22,6 +22,7 @@ If that fails, try the README you deleted to read this.
 Basic Architecture:
 
 <img width="337" height="269" alt="Screenshot 2026-06-02 at 6 56 08 PM" src="https://github.com/user-attachments/assets/d4e19b33-0ebc-4078-8ed7-662bbb159b4b" />
+<img width="1728" height="1117" alt="image" src="https://github.com/user-attachments/assets/27402a55-3bfe-4715-9174-71e3a7750756" />
 
 Happy star surfing! ⭐️
 Here's the research paper if you're interested to give it a read!

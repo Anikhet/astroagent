@@ -7,6 +7,10 @@ Welcome to the app that points your digital telescope so you can pretend you mea
 - Bask in a green-tinted UI that says “NASA, but make it vibes.”
 - Chat with an AI that knows constellations and politely ignores flat-earthers.
 
+
+# Here's a short demo
+https://www.tella.tv/video/astroagent-18yh
+
 ### Quick Start
 ```
 git clone astroagent
@@ -27,6 +31,5 @@ Basic Architecture:
 Happy star surfing! ⭐️
 Here's the research paper if you're interested to give it a read!
 https://drive.google.com/file/d/1ZKxq7AJo-SNlBnFNgKOhNPspvaQoFn7M/view?usp=drive_link
-Here's a short demo
-https://www.tella.tv/video/astroagent-18yh
+
 

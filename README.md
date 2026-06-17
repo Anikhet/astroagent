@@ -8,7 +8,7 @@ Welcome to the app that points your digital telescope so you can pretend you mea
 - Chat with an AI that knows constellations and politely ignores flat-earthers.
 
 
-# Here's a short demo
+## Here's a short demo
 https://www.tella.tv/video/astroagent-18yh
 
 ### Quick Start

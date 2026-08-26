@@ -1,19 +1,24 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "cd frontend && npm run build",
-  "installCommand": "cd frontend && npm install",
-  "outputDirectory": "frontend/.next",
-  "framework": "nextjs",
-  "functions": {
-    "api/index.py": {
-      "runtime": "@vercel/python@4.3.1",
-      "memory": 3008,
-      "maxDuration": 60
+  "services": {
+    "frontend": {
+      "root": "frontend/",
+      "framework": "nextjs"
+    },
+    "backend": {
+      "root": "backend/",
+      "framework": "fastapi",
+      "entrypoint": "app.main:app",
+      "functions": {
+        "app/main.py": {
+          "maxDuration": 60,
+          "excludeFiles": "{**/__pycache__/**,test_*.py,*.md}"
+        }
+      }
     }
   },
   "rewrites": [
-    { "source": "/api/sky", "destination": "/api/index" },
-    { "source": "/api/plan", "destination": "/api/index" },
-    { "source": "/api/future-windows", "destination": "/api/index" }
+    { "source": "/api/(.*)", "destination": { "service": "backend" } },
+    { "source": "/(.*)", "destination": { "service": "frontend" } }
   ]
 }

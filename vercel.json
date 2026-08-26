@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "cd frontend && npm run build",
+  "installCommand": "cd frontend && npm install",
+  "outputDirectory": "frontend/.next",
+  "framework": "nextjs",
+  "functions": {
+    "api/index.py": {
+      "runtime": "@vercel/python@4.3.1",
+      "memory": 3008,
+      "maxDuration": 60
+    }
+  },
+  "rewrites": [
+    { "source": "/api/sky", "destination": "/api/index" },
+    { "source": "/api/plan", "destination": "/api/index" },
+    { "source": "/api/future-windows", "destination": "/api/index" }
+  ]
+}

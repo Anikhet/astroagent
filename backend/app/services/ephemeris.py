@@ -5,14 +5,24 @@ from pathlib import Path
 from typing import Dict, Any, List, Tuple
 import math
 
-from skyfield.api import load, wgs84
+from skyfield.api import load, load_file, wgs84
 
+# Resolve the ephemeris relative to this file rather than the process working
+# directory. Skyfield's `load()` searches the CWD and silently downloads a 31MB
+# file when it misses -- which fails on read-only serverless filesystems and
+# would re-fetch on every cold start. `load_file()` opens an exact path and
+# never downloads.
 _BASE_DIR = Path(__file__).resolve().parent.parent
-_DATA_DIR = _BASE_DIR / "data"
-_DATA_DIR.mkdir(parents=True, exist_ok=True)
+_EPH_PATH = _BASE_DIR.parent / "de440s.bsp"
 
-_TS = load.timescale()
-_EPH = load("de440s.bsp")
+if not _EPH_PATH.exists():
+    raise FileNotFoundError(
+        f"Ephemeris kernel not found at {_EPH_PATH}. "
+        "de440s.bsp must be committed alongside the backend service."
+    )
+
+_TS = load.timescale(builtin=True)
+_EPH = load_file(str(_EPH_PATH))
 
 # Map our ids to EPHEMERIS names present in de440s
 _TARGETS: List[Tuple[str, str]] = [

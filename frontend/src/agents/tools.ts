@@ -2,7 +2,7 @@ import { tool } from '@openai/agents/realtime';
 import { z } from 'zod';
 import { PlanetPosition, ObservationPlan, VisibleObjects, FutureWindows } from '../types/chat';
 
-const BACKEND_BASE_URL = 'http://localhost:8000';
+const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? '';
 
 // Tool implementations using OpenAI Agents SDK tool function
 export const getPlanetPositionTool = tool({

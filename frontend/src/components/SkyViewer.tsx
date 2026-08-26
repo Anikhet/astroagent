@@ -463,7 +463,7 @@ export default function SkyViewer({ date, latitude, longitude }: SkyViewerProps)
         datetime: timestamp.toISOString(),
       });
 
-      const res = await fetch(`http://localhost:8000/api/sky?${params.toString()}`);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL ?? ""}/api/sky?${params.toString()}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const json: SkyResponse = await res.json();

@@ -11,7 +11,7 @@ function AppContent() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [latitude, setLatitude] = useState(37.7749); // San Francisco default
   const [longitude, setLongitude] = useState(-122.4194);
-  const { selectedPlanet } = useCamera();
+  const { highlightedPlanet } = useCamera();
 
   const handleDateChange = (date: Date) => {
     setCurrentDate(date);
@@ -55,7 +55,7 @@ function AppContent() {
           date={currentDate} 
           latitude={latitude} 
           longitude={longitude} 
-          target={selectedPlanet || 'saturn'} 
+          target={highlightedPlanet || 'saturn'}
         />
       </div>
       

@@ -71,7 +71,7 @@ export function PlannerCard({ date, latitude, longitude, target = 'saturn' }: Pl
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`http://127.0.0.1:8000/api/plan?${params}`);
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL ?? ""}/api/plan?${params}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = (await res.json()) as PlannerResponse;
         if (!cancelled) setData(json);

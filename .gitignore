@@ -6,3 +6,7 @@ node_modules/
 *.tsbuildinfo
 __pycache__/
 *.pyc
+
+# Environment files (never commit secrets)
+.env*
+!.env.example

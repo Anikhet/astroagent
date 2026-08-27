@@ -72,16 +72,18 @@ function ChatPanelInner({ latitude, longitude, currentDate }: ChatPanelProps) {
       const tokenResponse = await fetch("/api/session");
       const data = await tokenResponse.json();
 
-      if (!data.client_secret?.value) {
-        const errorMsg = "No ephemeral key provided by the server. Please check your OpenAI API key.";
-        console.error(errorMsg);
+      // Surface the server's actual reason rather than always blaming the key.
+      if (!tokenResponse.ok || !data.value) {
+        const errorMsg =
+          data?.error ?? "The server did not return a realtime session key.";
+        console.error("Failed to fetch ephemeral key:", errorMsg);
         setConnectionError(errorMsg);
         setSessionStatus("DISCONNECTED");
         return null;
       }
 
       setConnectionError("");
-      return data.client_secret.value;
+      return data.value;
     } catch (error) {
       const errorMsg = `Error fetching ephemeral key: ${error instanceof Error ? error.message : 'Unknown error'}`;
       console.error(errorMsg);
@@ -102,7 +104,7 @@ function ChatPanelInner({ latitude, longitude, currentDate }: ChatPanelProps) {
       try {
         const datetime = currentDate.toISOString();
         const response = await fetch(
-          `http://127.0.0.1:8000/api/plan?lat=${latitude}&lon=${longitude}&datetime=${datetime}&target=saturn&refraction=true`
+          `${process.env.NEXT_PUBLIC_BACKEND_URL ?? ""}/api/plan?lat=${latitude}&lon=${longitude}&datetime=${datetime}&target=saturn&refraction=true`
         );
         if (response.ok) {
           const data = await response.json();
